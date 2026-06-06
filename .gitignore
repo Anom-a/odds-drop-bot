@@ -7,6 +7,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Log files
+odds_bot.log
+
 # SQLite databases
 odds_bot.db
 *.sqlite3
