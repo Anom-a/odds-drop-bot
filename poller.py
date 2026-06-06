@@ -26,34 +26,41 @@ async def poll_once(bot, db_module, config_module):
             parsed_odds = odds_client.parse_odds(match)
             all_odds.extend(parsed_odds)
             
-        # 3. Get the dynamic threshold
-        current_threshold = db_module.get_threshold()
+        # 3. Get subscribers and calculate minimum threshold
+        subscribers = db_module.get_subscribers()
+        if not subscribers:
+            min_threshold = float(config_module.DROP_THRESHOLD)
+        else:
+            min_threshold = min([sub['threshold'] for sub in subscribers])
+            
+        # 4. Run check_for_drops with the minimum threshold
+        drops = comparator.check_for_drops(all_odds, db_module, min_threshold)
         
-        # 4. Run check_for_drops
-        drops = comparator.check_for_drops(all_odds, db_module, current_threshold)
-        
-        # 5. For each alert: send_alert
+        # 5. For each alert: send_alert to subscribers who meet their threshold
         for alert in drops:
             if not db_module.alert_already_sent(alert['alert_hash']):
                 try:
-                    subscribers = db_module.get_subscribers()
-                    
                     if not subscribers:
                         logger.warning(f"No subscribers registered yet. Skipped sending alert for match {alert['match_id']}")
                         # Mark as sent anyway so we don't hold a backlog
                         db_module.mark_alert_sent(alert['alert_hash'])
                         continue
                         
-                    for chat_id in subscribers:
-                        try:
-                            await alerts.send_alert(bot, chat_id, alert)
-                            alerts_sent_count += 1
-                        except Exception as e:
-                            logger.error(f"Failed to send alert to {chat_id}: {e}")
+                    sent_to_anyone = False
+                    for sub in subscribers:
+                        if alert['drop_pct'] >= sub['threshold']:
+                            try:
+                                await alerts.send_alert(bot, sub['chat_id'], alert)
+                                alerts_sent_count += 1
+                                sent_to_anyone = True
+                            except Exception as e:
+                                logger.error(f"Failed to send alert to {sub['chat_id']}: {e}")
                             
                     # Mark alert as sent after broadcasting
-                    db_module.mark_alert_sent(alert['alert_hash'])
-                    logger.info(f"Alert broadcasted for match {alert['match_id']} ({alert['outcome']} dropped {alert['drop_pct']}%)")
+                    if sent_to_anyone or len(subscribers) > 0:
+                        db_module.mark_alert_sent(alert['alert_hash'])
+                        if sent_to_anyone:
+                            logger.info(f"Alert broadcasted for match {alert['match_id']} ({alert['outcome']} dropped {alert['drop_pct']}%)")
                         
                 except Exception as e:
                     logger.error(f"Failed to process alert for {alert['alert_hash']}: {e}")

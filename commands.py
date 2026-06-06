@@ -37,14 +37,16 @@ async def set_threshold_handler(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text("❌ *Error:* Threshold must be a float between 1 and 50.", parse_mode='Markdown')
             return
             
-        db.set_threshold(value)
+        chat_id = str(update.effective_chat.id)
+        db.set_threshold(chat_id, value)
         await update.message.reply_text(f"✅ *Success!* Threshold updated to *{value}%*", parse_mode='Markdown')
     except ValueError:
         await update.message.reply_text("❌ *Error:* Invalid number provided. Must be a float.", parse_mode='Markdown')
 
 async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /status"""
-    threshold = db.get_threshold()
+    chat_id = str(update.effective_chat.id)
+    threshold = db.get_threshold(chat_id)
     
     with db.get_connection() as conn:
         c = conn.cursor()

@@ -51,9 +51,16 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS subscribers (
                 chat_id TEXT PRIMARY KEY,
-                registered_at TEXT
+                registered_at TEXT,
+                threshold REAL
             )
         ''')
+        
+        # Add threshold column if it doesn't exist (migration for existing DB)
+        try:
+            cursor.execute('ALTER TABLE subscribers ADD COLUMN threshold REAL')
+        except sqlite3.OperationalError:
+            pass # Column already exists
         
         # Initialize default threshold if not set
         cursor.execute('SELECT value FROM settings WHERE key = ?', ('DROP_THRESHOLD',))
@@ -70,17 +77,24 @@ def add_subscriber(chat_id: str):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT OR IGNORE INTO subscribers (chat_id, registered_at)
-            VALUES (?, ?)
-        ''', (chat_id, datetime.datetime.now(datetime.timezone.utc).isoformat()))
+            INSERT OR IGNORE INTO subscribers (chat_id, registered_at, threshold)
+            VALUES (?, ?, ?)
+        ''', (chat_id, datetime.datetime.now(datetime.timezone.utc).isoformat(), float(config.DROP_THRESHOLD)))
         conn.commit()
 
 def get_subscribers() -> list:
-    """Return a list of all registered chat IDs."""
+    """Return a list of dicts of all registered chat IDs with their thresholds."""
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT chat_id FROM subscribers')
-        return [row[0] for row in cursor.fetchall()]
+        cursor.execute('SELECT chat_id, threshold FROM subscribers')
+        
+        results = []
+        for row in cursor.fetchall():
+            chat_id = row[0]
+            # Handle case where threshold is NULL because it was added later
+            threshold = float(row[1]) if row[1] is not None else float(config.DROP_THRESHOLD)
+            results.append({'chat_id': chat_id, 'threshold': threshold})
+        return results
 
 def upsert_match(match_dict):
     """Insert or update a match record."""
@@ -145,22 +159,23 @@ def mark_alert_sent(alert_hash):
         except sqlite3.IntegrityError:
             pass # alert_hash must be unique, so we ignore duplicates
 
-def get_threshold() -> float:
-    """Get the current drop threshold from settings, fallback to config."""
+def get_threshold(chat_id: str) -> float:
+    """Get the current drop threshold for a specific user, fallback to config."""
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('SELECT value FROM settings WHERE key = ?', ('DROP_THRESHOLD',))
+        cursor.execute('SELECT threshold FROM subscribers WHERE chat_id = ?', (chat_id,))
         row = cursor.fetchone()
-        return float(row[0]) if row else float(config.DROP_THRESHOLD)
+        if row and row[0] is not None:
+            return float(row[0])
+        return float(config.DROP_THRESHOLD)
 
-def set_threshold(value: float):
-    """Update the drop threshold in settings."""
+def set_threshold(chat_id: str, value: float):
+    """Update the drop threshold for a specific user."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO settings (key, value) VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value
-        ''', ('DROP_THRESHOLD', str(value)))
+            UPDATE subscribers SET threshold = ? WHERE chat_id = ?
+        ''', (value, chat_id))
         conn.commit()
 
 if __name__ == "__main__":
@@ -176,11 +191,16 @@ if __name__ == "__main__":
         init_db()
         
         # Test: Threshold defaults to config value
-        assert get_threshold() == float(config.DROP_THRESHOLD), "Default threshold mismatch"
+        assert get_threshold('test_user') == float(config.DROP_THRESHOLD), "Default threshold mismatch"
+        
+        # Test: Add subscriber
+        add_subscriber('test_user')
+        assert get_threshold('test_user') == float(config.DROP_THRESHOLD), "Default threshold mismatch after add"
         
         # Test: Setting new threshold
-        set_threshold(15.5)
-        assert get_threshold() == 15.5, "Failed to update threshold"
+        set_threshold('test_user', 15.5)
+        assert get_threshold('test_user') == 15.5, "Failed to update threshold"
+        assert get_threshold('other_user') == float(config.DROP_THRESHOLD), "Other user threshold changed"
         
         # Test: Upsert match (Insert)
         m = {
