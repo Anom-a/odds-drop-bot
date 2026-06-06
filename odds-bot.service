@@ -1,0 +1,16 @@
+[Unit]
+Description=Soccer Odds Drop Telegram Bot
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/odds-drop-bot
+EnvironmentFile=/opt/odds-drop-bot/.env
+ExecStart=/opt/odds-drop-bot/venv/bin/python main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/odds-bot/bot.log
+StandardError=append:/var/log/odds-bot/error.log
+
+[Install]
+WantedBy=multi-user.target
