@@ -73,6 +73,7 @@ def main():
     app = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).post_init(post_init).post_stop(post_stop).build()
     
     # 3. Register Commands
+    app.add_handler(CommandHandler("start", commands.start_handler))
     app.add_handler(CommandHandler("setthreshold", commands.set_threshold_handler))
     app.add_handler(CommandHandler("status", commands.status_handler))
     
