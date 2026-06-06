@@ -1,0 +1,3 @@
+"""
+Odds client module
+"""
