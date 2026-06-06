@@ -36,20 +36,27 @@ async def poll_once(bot, db_module, config_module):
         for alert in drops:
             if not db_module.alert_already_sent(alert['alert_hash']):
                 try:
-                    # Update context with last poll time so /status can show it
-                    # But we don't have access to context here, so we skip that for now.
+                    subscribers = db_module.get_subscribers()
                     
-                    if config_module.TELEGRAM_CHAT_ID and config_module.TELEGRAM_CHAT_ID != "your_telegram_chat_id_here":
-                        await alerts.send_alert(bot, config_module.TELEGRAM_CHAT_ID, alert)
-                        alerts_sent_count += 1
-                        logger.info(f"Alert sent for match {alert['match_id']} ({alert['outcome']} dropped {alert['drop_pct']}%)")
-                    else:
-                        logger.warning(f"Simulated alert (CHAT_ID missing) for match {alert['match_id']}")
-                        # We simulate marking it as sent anyway so we don't spam the DB
+                    if not subscribers:
+                        logger.warning(f"No subscribers registered yet. Skipped sending alert for match {alert['match_id']}")
+                        # Mark as sent anyway so we don't hold a backlog
                         db_module.mark_alert_sent(alert['alert_hash'])
+                        continue
+                        
+                    for chat_id in subscribers:
+                        try:
+                            await alerts.send_alert(bot, chat_id, alert)
+                            alerts_sent_count += 1
+                        except Exception as e:
+                            logger.error(f"Failed to send alert to {chat_id}: {e}")
+                            
+                    # Mark alert as sent after broadcasting
+                    db_module.mark_alert_sent(alert['alert_hash'])
+                    logger.info(f"Alert broadcasted for match {alert['match_id']} ({alert['outcome']} dropped {alert['drop_pct']}%)")
                         
                 except Exception as e:
-                    logger.error(f"Failed to send alert for {alert['alert_hash']}: {e}")
+                    logger.error(f"Failed to process alert for {alert['alert_hash']}: {e}")
                     
         # 6. Log completion details
         req_rem = getattr(odds_client, 'requests_remaining', 'Unknown')

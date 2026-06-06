@@ -48,6 +48,13 @@ def init_db():
             )
         ''')
         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS subscribers (
+                chat_id TEXT PRIMARY KEY,
+                registered_at TEXT
+            )
+        ''')
+        
         # Initialize default threshold if not set
         cursor.execute('SELECT value FROM settings WHERE key = ?', ('DROP_THRESHOLD',))
         if cursor.fetchone() is None:
@@ -57,6 +64,23 @@ def init_db():
             )
             
         conn.commit()
+
+def add_subscriber(chat_id: str):
+    """Add a new subscriber if they don't already exist."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR IGNORE INTO subscribers (chat_id, registered_at)
+            VALUES (?, ?)
+        ''', (chat_id, datetime.datetime.now(datetime.timezone.utc).isoformat()))
+        conn.commit()
+
+def get_subscribers() -> list:
+    """Return a list of all registered chat IDs."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT chat_id FROM subscribers')
+        return [row[0] for row in cursor.fetchall()]
 
 def upsert_match(match_dict):
     """Insert or update a match record."""

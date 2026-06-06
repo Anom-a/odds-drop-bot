@@ -15,7 +15,6 @@ Kickoff: {alert['kickoff_time']}"""
 async def send_alert(bot, chat_id: str, alert: dict):
     text = format_alert(alert)
     await bot.send_message(chat_id=chat_id, text=text)
-    db.mark_alert_sent(alert['alert_hash'])
 
 if __name__ == "__main__":
     import asyncio

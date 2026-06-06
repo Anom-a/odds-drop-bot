@@ -5,6 +5,9 @@ import datetime
 
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /start"""
+    chat_id = str(update.effective_chat.id)
+    db.add_subscriber(chat_id)
+    
     welcome_text = (
         "👋 Welcome to the *Soccer Pre-Match Odds Drop Bot*!\n\n"
         "I monitor The Odds API continuously and will instantly notify you of significant pre-match odds drops.\n\n"
