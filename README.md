@@ -1,73 +1,120 @@
-# Soccer Pre-Match Odds Drop Bot
+# ⚽ Soccer Pre-Match Odds Drop Bot
 
-A Telegram bot that continuously monitors The Odds API for significant pre-match odds drops in Soccer and alerts you directly via Telegram.
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-Production_Ready-brightgreen)
 
-## Setup Instructions (Ubuntu Azure VM)
+A high-performance, async Telegram bot that continuously monitors [The Odds API](https://the-odds-api.com/) for significant pre-match odds drops in global soccer matches and broadcasts real-time alerts to subscribed users.
 
-1. Clone or upload this repository to your Ubuntu VM.
-2. Make sure your `.env` file is populated with your live API keys:
-   ```ini
-   ODDS_API_KEY=your_key_here
-   TELEGRAM_BOT_TOKEN=your_token_here
-   TELEGRAM_CHAT_ID=your_chat_id_here
-   DROP_THRESHOLD=20.0
-   POLL_INTERVAL_SECONDS=60
-   ```
-3. Run the automated deployment script with `sudo` to set up system dependencies, the virtual environment, permissions, and log directories:
+Designed for high availability, this bot runs as a background service, features a robust SQLite persistence layer, and supports multi-user subscription with dynamic, per-user configuration.
+
+---
+
+## ✨ Key Features
+
+- **Real-Time Monitoring**: Automatically polls The Odds API to detect drastic pre-match odds fluctuations.
+- **Multi-User Architecture**: Supports an unlimited number of Telegram users simultaneously. Users simply send `/start` to subscribe.
+- **Per-User Customization**: Each user can set their own custom odds-drop sensitivity threshold (e.g., `15%` vs `25%`) using interactive bot commands.
+- **Duplicate Alert Prevention**: Cryptographic hashing (`SHA-256`) of odds data ensures users are never spammed with duplicate alerts for the same market shift.
+- **Zero-Downtime Resilience**: Built with `python-telegram-bot` and `APScheduler` wrapped in asynchronous event loops. Survives network interruptions and API rate limits gracefully.
+- **Production Ready**: Includes automated deployment scripts and a native Linux `systemd` unit file for 24/7 background execution.
+
+---
+
+## 🛠️ Technology Stack
+
+- **Language**: Python 3.10+
+- **Database**: SQLite3 (Local, serverless, atomic)
+- **APIs**: 
+  - [The Odds API v4](https://the-odds-api.com/) (Data Ingestion)
+  - [Telegram Bot API](https://core.telegram.org/bots/api) (Async User Interface)
+- **Key Libraries**: `python-telegram-bot`, `apscheduler`, `requests`, `python-dotenv`
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.10 or higher installed.
+- A free API key from [The Odds API](https://the-odds-api.com/).
+- A Telegram Bot Token from [@BotFather](https://t.me/BotFather).
+
+### 1. Local Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Anom-a/odds-drop-bot.git
+cd odds-drop-bot
+
+# Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configuration
+
+Copy the example environment file and inject your secure credentials:
+
+```bash
+cp .env.example .env
+```
+
+Edit the `.env` file:
+```ini
+ODDS_API_KEY=your_odds_api_key_here
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+DROP_THRESHOLD=20.0
+POLL_INTERVAL_SECONDS=60
+```
+
+### 3. Run the Bot
+
+```bash
+python main.py
+```
+
+---
+
+## 📱 Bot Commands (Telegram Interface)
+
+Users can interact with the bot directly via Telegram to manage their personal subscriptions:
+
+| Command | Description |
+| :--- | :--- |
+| `/start` | Subscribes the user to the broadcast list and opens the main menu. |
+| `/status` | Displays a beautiful dashboard showing the user's personal threshold, last system poll time, and alerts dispatched today. |
+| `/setthreshold <float>`| Updates the user's personal odds drop threshold (e.g., `/setthreshold 15.5` alerts only on drops ≥ 15.5%). |
+
+---
+
+## ☁️ Cloud Deployment (Ubuntu / Debian)
+
+This project includes configuration files for seamless deployment to a virtual machine (e.g., Azure, AWS EC2, DigitalOcean).
+
+1. Upload the repository to your remote server (e.g., `/opt/odds-drop-bot`).
+2. Run the automated deployment script:
    ```bash
    sudo bash deploy.sh
    ```
-4. Copy the systemd unit file into the system services directory:
+3. Register the bot as a highly-available background service:
    ```bash
    sudo cp odds-bot.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now odds-bot
    ```
 
-## Enable and Start the Service
-Run the following exact commands to reload the system daemon, enable the bot to start automatically on system boot, and launch it immediately:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable odds-bot
-sudo systemctl start odds-bot
-```
-
-Confirm the service is running perfectly with:
-```bash
-sudo systemctl status odds-bot
-```
+### Operational Commands
+- **View Live Logs**: `sudo journalctl -u odds-bot -f`
+- **Check Service Status**: `sudo systemctl status odds-bot`
+- **Restart Bot**: `sudo systemctl restart odds-bot`
 
 ---
 
-## Bot Features & Commands
+## 📄 License & Disclaimer
 
-Once running, you can manage the bot dynamically from within Telegram:
-- **How to update threshold:** Send `/setthreshold 15` (updates the drop threshold on the fly without needing a restart).
-- **Check bot status:** Send `/status` to see daily alert counts, current threshold, and last poll timestamp.
+This project is licensed under the MIT License. 
 
----
-
-## Server Management
-
-**How to check logs:**
-You can follow the systemd journal logs live using:
-```bash
-journalctl -u odds-bot -f
-```
-*(You can also inspect the raw text logs directly at `/var/log/odds-bot/bot.log` and `/var/log/odds-bot/error.log`)*
-
-**How to restart:**
-If the bot gets stuck or you make manual changes to the python files:
-```bash
-sudo systemctl restart odds-bot
-```
-
-**How to swap to paid API:**
-1. Open the `.env` file located in the `/opt/odds-drop-bot/` installation directory:
-   ```bash
-   sudo nano /opt/odds-drop-bot/.env
-   ```
-2. Change `ODDS_API_KEY` to your new paid key.
-3. Save the file and restart the bot to apply the changes:
-   ```bash
-   sudo systemctl restart odds-bot
-   ```
+*Disclaimer: This bot is strictly for informational and educational purposes. Betting markets are highly volatile, and odds data may be subject to API delays.*
